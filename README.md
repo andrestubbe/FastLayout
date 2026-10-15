@@ -111,7 +111,7 @@ Standard Java layout managers (`FlowLayout`, `GridBagLayout`, `BoxLayout`, JavaF
 | **GC Allocations on Hot-Path** | ⚠️ High (Creates `Dimension`, `Insets`, `Rectangle`) | ⚠️ Moderate-to-High | **✅ 0 Bytes (Reusable `LayoutMeasure` & buffers)** |
 | **Data Output Layouts** | Only widget coordinates | Only scene graph bounds | **AoS (`Rect[]`), SoA, & Flat `float[]` Buffers** |
 | **Inner & Outer Margin Bounds** | ❌ Missing (or complex borders) | ⚠️ CSS margin box calculation | **✅ Automatic `cell.inner` & `cell.outer` tracking** |
-| **Execution Latency** | Milliseconds | Milliseconds | **Sub-microsecond (< 1 µs)** |
+| **Execution Latency** | Milliseconds | Milliseconds | **Sub-microsecond (< 1 µs for ≤ 100 cells, ~7 µs for 1,000)** |
 | **Backend Agnostic** | Swing only | JavaFX only | **FastGUI, FastVulkan, FastWindow, Swing, CLI** |
 
 ---
@@ -123,11 +123,11 @@ Standard Java layout managers (`FlowLayout`, `GridBagLayout`, `BoxLayout`, JavaF
 - **🚀 Dual Output Modes**:
   - **AoS (Array of Structures)**: `Rect[] out` for object-oriented component engines.
   - **Flat Contiguous Floats**: `float[] outBuffer` (`x, y, w, h` stride) for direct GPU / Vulkan vertex buffer uploads.
-- **📏 Monomorphic `LinearLayout`**:
-  - Separate monomorphic horizontal & vertical loops optimized for HotSpot C2 inlining.
-  - Cross-axis alignment (`START`, `CENTER`, `END`, `STRETCH`).
-  - Main-axis alignment (`START`, `CENTER`, `END`).
-  - Flex growth (`weight > 0.0f`) with min/max size clamping.
+- **📏 Comprehensive Algorithm Suite**:
+  - **`LinearLayout`**: Monomorphic horizontal & vertical loops (alignment, flex growth, min/max clamping).
+  - **`WrapLayout`**: Multi-line / multi-column responsive wrapping (flex-wrap for tags and toolbars).
+  - **`GridLayout`**: 2D uniform grid layout with fixed/dynamic rows & columns.
+- **⚡ Dirty Layout Tracking (`LayoutArena`)**: Distinguishes structural changes from window resizes/drags. Zero copying on resize.
 - **📦 Dual Box Geometry**: Calculates both `cell.outer` (inclusive of margins) and `cell.inner` (content box).
 - **📦 FastJava Ecosystem Ready**: Interoperates seamlessly with **FastGrid**, **FastGUI**, **FastVulkan**, and **FastWindow**.
 
@@ -139,7 +139,9 @@ Standard Java layout managers (`FlowLayout`, `GridBagLayout`, `BoxLayout`, JavaF
 2. ✅ **Monomorphic `LinearLayout`**: High-speed C2 inlinable horizontal and vertical loops.
 3. ✅ **Contiguous Float Buffering**: Direct flat `float[]` array streaming for GPU vertex and quad batching.
 4. ✅ **Struct-of-Arrays (SoA) `LayoutArena`**: Flat contiguous memory arena optimizing CPU L1/L2 prefetching and eliminating pointer chasing.
-5. 📋 **FastGUI & FastVulkan Integration**: First-class layout provider for high-FPS desktop UI pipelines.
+5. ✅ **Multi-line `WrapLayout` & 2D `GridLayout`**: Responsive wrapping and grid architectures with zero-allocation SoA kernels.
+6. ✅ **Dirty Layout Tracking**: Subtree / geometry dirtiness avoiding redundant array synchronization.
+7. 📋 **FastGUI & FastVulkan Integration**: First-class layout provider for high-FPS desktop UI pipelines.
 
 ---
 

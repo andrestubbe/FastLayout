@@ -48,7 +48,35 @@ High-performance linear layout supporting both horizontal and vertical axes with
 
 ---
 
-## 3. Core Models
+## 3. Class: `fastlayout.WrapLayout`
+
+Multi-line and multi-column responsive wrapping layout (FlexWrap). Elements flow along the main axis until container bounds are reached, then wrap across the cross axis.
+
+### Factory Methods & Construction
+
+| Method / Signature | Return Type | Description |
+|:---|:---|:---|
+| `WrapLayout.horizontal(crossGap)` | `WrapLayout` | Creates horizontal wrap layout (rows break top-to-bottom) with specified cross gap between rows. |
+| `WrapLayout.vertical(crossGap)` | `WrapLayout` | Creates vertical wrap layout (columns break left-to-right) with specified cross gap between columns. |
+| `new WrapLayout(axis, crossAlign, crossGap)` | `WrapLayout` | Explicit constructor. |
+
+---
+
+## 4. Class: `fastlayout.GridLayout`
+
+2D uniform grid layout arranging elements into fixed rows and columns with uniform cell proportions.
+
+### Factory Methods & Construction
+
+| Method / Signature | Return Type | Description |
+|:---|:---|:---|
+| `GridLayout.columns(columns, gap)` | `GridLayout` | Creates grid with fixed column count, dynamic row count, and uniform gap. |
+| `GridLayout.columns(columns, rowGap, colGap)` | `GridLayout` | Creates grid with fixed column count, dynamic row count, and separate row/column gaps. |
+| `new GridLayout(cols, rows, rowGap, colGap)` | `GridLayout` | Explicit constructor. |
+
+---
+
+## 5. Core Models
 
 ### `fastlayout.LayoutArena`
 High-performance Struct-of-Arrays (SoA) memory arena for layout constraints:

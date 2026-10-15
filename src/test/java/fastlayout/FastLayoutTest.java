@@ -198,4 +198,69 @@ public class FastLayoutTest {
         assertEquals(270f, buffer[8], 0.001f);
         assertEquals(30f, buffer[10], 0.001f);
     }
+
+    @Test
+    public void testWrapLayoutMultiLine() {
+        // 4 items each 80px wide. Container is 200px wide.
+        // Row 1: Item 0 (80px) + Gap 10 + Item 1 (80px) = 170px <= 200px
+        // Row 2: Item 2 (80px) + Gap 10 + Item 3 (80px) = 170px <= 200px
+        List<Cell> cells = new ArrayList<>();
+        cells.add(new Cell(80, 30));
+        cells.add(new Cell(80, 30));
+        cells.add(new Cell(80, 30));
+        cells.add(new Cell(80, 30));
+
+        WrapLayout wrap = WrapLayout.horizontal(10); // 10px cross gap
+        Rect[] out = new Rect[4];
+        for (int i = 0; i < 4; i++) out[i] = new Rect();
+
+        wrap.arrange(cells, 200, 100, 10, 0, 0, 0, 0, out);
+
+        // Row 1
+        assertEquals(0f, out[0].x, 0.001f);
+        assertEquals(0f, out[0].y, 0.001f);
+        assertEquals(90f, out[1].x, 0.001f);
+        assertEquals(0f, out[1].y, 0.001f);
+
+        // Row 2 (wraps to y = 30 + 10 = 40)
+        assertEquals(0f, out[2].x, 0.001f);
+        assertEquals(40f, out[2].y, 0.001f);
+        assertEquals(90f, out[3].x, 0.001f);
+        assertEquals(40f, out[3].y, 0.001f);
+    }
+
+    @Test
+    public void testGridLayoutUniformColumns() {
+        // 4 items in 2 columns -> 2 rows
+        List<Cell> cells = new ArrayList<>();
+        cells.add(new Cell());
+        cells.add(new Cell());
+        cells.add(new Cell());
+        cells.add(new Cell());
+
+        // Container: 200w x 100h, gap = 0
+        GridLayout grid = GridLayout.columns(2, 0);
+        Rect[] out = new Rect[4];
+        for (int i = 0; i < 4; i++) out[i] = new Rect();
+
+        grid.arrange(cells, 200, 100, 0, 0, 0, 0, 0, out);
+
+        // Col 0, Row 0: [0, 0, 100, 50]
+        assertEquals(0f, out[0].x, 0.001f);
+        assertEquals(0f, out[0].y, 0.001f);
+        assertEquals(100f, out[0].w, 0.001f);
+        assertEquals(50f, out[0].h, 0.001f);
+
+        // Col 1, Row 0: [100, 0, 100, 50]
+        assertEquals(100f, out[1].x, 0.001f);
+        assertEquals(0f, out[1].y, 0.001f);
+
+        // Col 0, Row 1: [0, 50, 100, 50]
+        assertEquals(0f, out[2].x, 0.001f);
+        assertEquals(50f, out[2].y, 0.001f);
+
+        // Col 1, Row 1: [100, 50, 100, 50]
+        assertEquals(100f, out[3].x, 0.001f);
+        assertEquals(50f, out[3].y, 0.001f);
+    }
 }
