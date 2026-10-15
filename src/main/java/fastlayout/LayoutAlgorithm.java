@@ -8,19 +8,9 @@ import java.util.List;
 public interface LayoutAlgorithm {
 
     /**
-     * Measures the minimum/content bounding box required by the cells given constraints.
-     *
-     * @param cells input cells
-     * @param containerWidth available container width (or &lt;= 0 for unconstrained / fit-content)
-     * @param containerHeight available container height (or &lt;= 0 for unconstrained / fit-content)
-     * @param gap spacing between consecutive cells
-     * @param paddingTop padding top of the container
-     * @param paddingRight padding right of the container
-     * @param paddingBottom padding bottom of the container
-     * @param paddingLeft padding left of the container
-     * @return LayoutMeasure with computed width and height
+     * Measures the content bounding box into a newly created LayoutMeasure.
      */
-    LayoutMeasure measure(
+    default LayoutMeasure measure(
             List<Cell> cells,
             float containerWidth,
             float containerHeight,
@@ -29,20 +19,29 @@ public interface LayoutAlgorithm {
             float paddingRight,
             float paddingBottom,
             float paddingLeft
+    ) {
+        LayoutMeasure out = new LayoutMeasure();
+        measure(cells, containerWidth, containerHeight, gap, paddingTop, paddingRight, paddingBottom, paddingLeft, out);
+        return out;
+    }
+
+    /**
+     * Measures the content bounding box into a pre-allocated LayoutMeasure (zero allocations).
+     */
+    void measure(
+            List<Cell> cells,
+            float containerWidth,
+            float containerHeight,
+            float gap,
+            float paddingTop,
+            float paddingRight,
+            float paddingBottom,
+            float paddingLeft,
+            LayoutMeasure out
     );
 
     /**
-     * Positions and dimensions each cell into the output bounds.
-     *
-     * @param cells input cells
-     * @param containerWidth actual container width
-     * @param containerHeight actual container height
-     * @param gap spacing between consecutive cells
-     * @param paddingTop padding top of the container
-     * @param paddingRight padding right of the container
-     * @param paddingBottom padding bottom of the container
-     * @param paddingLeft padding left of the container
-     * @param out pre-allocated array of Rects where results are written
+     * Positions and dimensions each cell into pre-allocated Rect objects (AoS format).
      */
     void arrange(
             List<Cell> cells,
@@ -54,5 +53,33 @@ public interface LayoutAlgorithm {
             float paddingBottom,
             float paddingLeft,
             Rect[] out
+    );
+
+    /**
+     * Positions and dimensions each cell into a flat primitive float buffer (SoA / stride format: x, y, w, h).
+     * Ideal for direct blitting, OpenGL/Vulkan/DirectX vertex buffers, or cache-aligned batched processing.
+     *
+     * @param cells input cells
+     * @param containerWidth actual container width
+     * @param containerHeight actual container height
+     * @param gap spacing between consecutive cells
+     * @param paddingTop padding top of the container
+     * @param paddingRight padding right of the container
+     * @param paddingBottom padding bottom of the container
+     * @param paddingLeft padding left of the container
+     * @param outBounds flat float array of at least offset + cells.size() * 4 elements
+     * @param offset starting index in outBounds
+     */
+    void arrange(
+            List<Cell> cells,
+            float containerWidth,
+            float containerHeight,
+            float gap,
+            float paddingTop,
+            float paddingRight,
+            float paddingBottom,
+            float paddingLeft,
+            float[] outBounds,
+            int offset
     );
 }

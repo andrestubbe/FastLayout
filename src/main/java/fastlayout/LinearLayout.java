@@ -3,11 +3,11 @@ package fastlayout;
 import java.util.List;
 
 /**
- * 1D Linear Layout (Row / Column / ToolBar / Popup Menu / Settings).
+ * High-performance 1D Linear Layout (Row / Column / ToolBar / Popup Menu / Settings).
  *
- * <p>Unifies horizontal and vertical layouts into a single mathematical engine.
- * The primary axis determines accumulation (sum of sizes + gaps + flex weights),
- * while the cross axis determines alignment (START, CENTER, END, STRETCH).</p>
+ * <p>Features monomorphic loops optimized for HotSpot C2 inlining, zero GC allocations,
+ * and support for both AoS ({@code Rect[]}) and flat contiguous float buffers
+ * ({@code float[]} stride: x, y, w, h).</p>
  */
 public final class LinearLayout implements LayoutAlgorithm {
 
@@ -25,11 +25,10 @@ public final class LinearLayout implements LayoutAlgorithm {
 
     public LinearLayout(Axis axis, Alignment crossAlignment, Alignment mainAlignment) {
         this.axis = (axis != null) ? axis : Axis.HORIZONTAL;
-        this.crossAlignment = crossAlignment;
-        this.mainAlignment = mainAlignment;
+        this.crossAlignment = (crossAlignment != null) ? crossAlignment : Alignment.CENTER;
+        this.mainAlignment = (mainAlignment != null) ? mainAlignment : Alignment.START;
     }
 
-    // Factory methods
     public static LinearLayout horizontal() {
         return new LinearLayout(Axis.HORIZONTAL, Alignment.CENTER, Alignment.START);
     }
@@ -59,7 +58,7 @@ public final class LinearLayout implements LayoutAlgorithm {
     }
 
     @Override
-    public LayoutMeasure measure(
+    public void measure(
             List<Cell> cells,
             float containerWidth,
             float containerHeight,
@@ -67,22 +66,42 @@ public final class LinearLayout implements LayoutAlgorithm {
             float paddingTop,
             float paddingRight,
             float paddingBottom,
-            float paddingLeft
+            float paddingLeft,
+            LayoutMeasure out
     ) {
-        boolean isH = (axis == Axis.HORIZONTAL);
+        int n = cells.size();
+        if (axis == Axis.HORIZONTAL) {
+            measureHorizontal(cells, n, containerWidth, containerHeight, gap, paddingTop, paddingRight, paddingBottom, paddingLeft, out);
+        } else {
+            measureVertical(cells, n, containerWidth, containerHeight, gap, paddingTop, paddingRight, paddingBottom, paddingLeft, out);
+        }
+    }
+
+    private void measureHorizontal(
+            List<Cell> cells,
+            int n,
+            float containerWidth,
+            float containerHeight,
+            float gap,
+            float paddingTop,
+            float paddingRight,
+            float paddingBottom,
+            float paddingLeft,
+            LayoutMeasure out
+    ) {
         float mainAccum = 0f;
         float crossMax = 0f;
         boolean first = true;
 
-        for (int i = 0; i < cells.size(); i++) {
+        for (int i = 0; i < n; i++) {
             Cell c = cells.get(i);
             if (!first) {
                 mainAccum += gap;
             }
             first = false;
 
-            float mainSize = isH ? (c.width + c.totalMarginHorizontal()) : (c.height + c.totalMarginVertical());
-            float crossSize = isH ? (c.height + c.totalMarginVertical()) : (c.width + c.totalMarginHorizontal());
+            float mainSize = c.width + c.marginLeft + c.marginRight;
+            float crossSize = c.height + c.marginTop + c.marginBottom;
 
             mainAccum += mainSize;
             if (crossSize > crossMax) {
@@ -90,19 +109,54 @@ public final class LinearLayout implements LayoutAlgorithm {
             }
         }
 
-        float totalW, totalH;
-        if (isH) {
-            totalW = mainAccum + paddingLeft + paddingRight;
-            totalH = crossMax + paddingTop + paddingBottom;
-        } else {
-            totalW = crossMax + paddingLeft + paddingRight;
-            totalH = mainAccum + paddingTop + paddingBottom;
-        }
+        float totalW = mainAccum + paddingLeft + paddingRight;
+        float totalH = crossMax + paddingTop + paddingBottom;
 
         if (containerWidth > 0 && totalW < containerWidth) totalW = containerWidth;
         if (containerHeight > 0 && totalH < containerHeight) totalH = containerHeight;
 
-        return new LayoutMeasure(totalW, totalH);
+        out.set(totalW, totalH);
+    }
+
+    private void measureVertical(
+            List<Cell> cells,
+            int n,
+            float containerWidth,
+            float containerHeight,
+            float gap,
+            float paddingTop,
+            float paddingRight,
+            float paddingBottom,
+            float paddingLeft,
+            LayoutMeasure out
+    ) {
+        float mainAccum = 0f;
+        float crossMax = 0f;
+        boolean first = true;
+
+        for (int i = 0; i < n; i++) {
+            Cell c = cells.get(i);
+            if (!first) {
+                mainAccum += gap;
+            }
+            first = false;
+
+            float crossSize = c.width + c.marginLeft + c.marginRight;
+            float mainSize = c.height + c.marginTop + c.marginBottom;
+
+            mainAccum += mainSize;
+            if (crossSize > crossMax) {
+                crossMax = crossSize;
+            }
+        }
+
+        float totalW = crossMax + paddingLeft + paddingRight;
+        float totalH = mainAccum + paddingTop + paddingBottom;
+
+        if (containerWidth > 0 && totalW < containerWidth) totalW = containerWidth;
+        if (containerHeight > 0 && totalH < containerHeight) totalH = containerHeight;
+
+        out.set(totalW, totalH);
     }
 
     @Override
@@ -120,18 +174,48 @@ public final class LinearLayout implements LayoutAlgorithm {
         int n = cells.size();
         if (n == 0) return;
 
-        boolean isH = (axis == Axis.HORIZONTAL);
+        if (axis == Axis.HORIZONTAL) {
+            arrangeHorizontalAoS(cells, n, containerWidth, containerHeight, gap, paddingTop, paddingRight, paddingBottom, paddingLeft, out);
+        } else {
+            arrangeVerticalAoS(cells, n, containerWidth, containerHeight, gap, paddingTop, paddingRight, paddingBottom, paddingLeft, out);
+        }
+    }
 
-        float paddingStart = isH ? paddingLeft : paddingTop;
-        float paddingCross = isH ? paddingTop : paddingLeft;
+    @Override
+    public void arrange(
+            List<Cell> cells,
+            float containerWidth,
+            float containerHeight,
+            float gap,
+            float paddingTop,
+            float paddingRight,
+            float paddingBottom,
+            float paddingLeft,
+            float[] outBounds,
+            int offset
+    ) {
+        int n = cells.size();
+        if (n == 0) return;
 
-        float availableMain = isH ? (containerWidth - paddingLeft - paddingRight)
-                                  : (containerHeight - paddingTop - paddingBottom);
-        float availableCross = isH ? (containerHeight - paddingTop - paddingBottom)
-                                   : (containerWidth - paddingLeft - paddingRight);
+        if (axis == Axis.HORIZONTAL) {
+            arrangeHorizontalBuffer(cells, n, containerWidth, containerHeight, gap, paddingTop, paddingRight, paddingBottom, paddingLeft, outBounds, offset);
+        } else {
+            arrangeVerticalBuffer(cells, n, containerWidth, containerHeight, gap, paddingTop, paddingRight, paddingBottom, paddingLeft, outBounds, offset);
+        }
+    }
+
+    // --- Monomorphic Horizontal (AoS) ---
+    private void arrangeHorizontalAoS(
+            List<Cell> cells, int n,
+            float containerWidth, float containerHeight,
+            float gap,
+            float paddingTop, float paddingRight, float paddingBottom, float paddingLeft,
+            Rect[] out
+    ) {
+        float availableMain = containerWidth - paddingLeft - paddingRight;
+        float availableCross = containerHeight - paddingTop - paddingBottom;
         if (availableCross < 0) availableCross = 0;
 
-        // 1. Calculate constant content size along main axis and total flex weight
         float totalWeight = 0f;
         float fixedMain = 0f;
         float gapTotal = 0f;
@@ -139,27 +223,22 @@ public final class LinearLayout implements LayoutAlgorithm {
 
         for (int i = 0; i < n; i++) {
             Cell c = cells.get(i);
-            if (!first) {
-                gapTotal += gap;
-            }
+            if (!first) gapTotal += gap;
             first = false;
 
-            float cellMarginMain = isH ? c.totalMarginHorizontal() : c.totalMarginVertical();
-            float cellMain = isH ? c.width : c.height;
-
+            float marginH = c.marginLeft + c.marginRight;
             if (c.weight > 0) {
                 totalWeight += c.weight;
-                fixedMain += cellMarginMain;
+                fixedMain += marginH;
             } else {
-                fixedMain += cellMain + cellMarginMain;
+                fixedMain += c.width + marginH;
             }
         }
 
         float remainingMain = availableMain - fixedMain - gapTotal;
         if (remainingMain < 0) remainingMain = 0;
 
-        // Main-axis alignment offset if space remains and no flex weights
-        float curMain = paddingStart;
+        float curMain = paddingLeft;
         if (totalWeight <= 0 && remainingMain > 0) {
             if (mainAlignment == Alignment.CENTER) {
                 curMain += remainingMain / 2f;
@@ -168,79 +247,354 @@ public final class LinearLayout implements LayoutAlgorithm {
             }
         }
 
-        // 2. Position cells
         first = true;
         for (int i = 0; i < n; i++) {
             Cell c = cells.get(i);
-            if (!first) {
-                curMain += gap;
-            }
+            if (!first) curMain += gap;
             first = false;
 
-            float marginLeadMain = isH ? c.marginLeft : c.marginTop;
-            float marginTrailMain = isH ? c.marginRight : c.marginBottom;
-            float marginLeadCross = isH ? c.marginTop : c.marginLeft;
-            float marginTrailCross = isH ? c.marginBottom : c.marginRight;
-            float marginTotalCross = marginLeadCross + marginTrailCross;
-
-            // Compute main dimension
             float mainDim;
             if (c.weight > 0 && totalWeight > 0) {
                 mainDim = (c.weight / totalWeight) * remainingMain;
             } else {
-                mainDim = isH ? c.width : c.height;
+                mainDim = c.width;
             }
 
-            float minMain = isH ? c.minWidth : c.minHeight;
-            float maxMain = isH ? c.maxWidth : c.maxHeight;
-            if (minMain > 0 && mainDim < minMain) mainDim = minMain;
-            if (maxMain > 0 && mainDim > maxMain) mainDim = maxMain;
+            if (c.minWidth > 0 && mainDim < c.minWidth) mainDim = c.minWidth;
+            if (c.maxWidth > 0 && mainDim > c.maxWidth) mainDim = c.maxWidth;
 
-            // Compute cross dimension and position
-            float availableForCross = availableCross - marginTotalCross;
+            float availableForCross = availableCross - (c.marginTop + c.marginBottom);
             if (availableForCross < 0) availableForCross = 0;
 
             Alignment align = (c.crossAlignment != null) ? c.crossAlignment : this.crossAlignment;
-            float crossDim = isH ? c.height : c.width;
+            float crossDim = c.height;
             float crossPos;
 
             if (align == Alignment.STRETCH) {
                 crossDim = availableForCross;
-                crossPos = paddingCross + marginLeadCross;
+                crossPos = paddingTop + c.marginTop;
             } else if (align == Alignment.CENTER) {
-                crossPos = paddingCross + marginLeadCross + (availableForCross - crossDim) / 2f;
+                crossPos = paddingTop + c.marginTop + (availableForCross - crossDim) / 2f;
             } else if (align == Alignment.END) {
-                crossPos = paddingCross + availableCross - marginTrailCross - crossDim;
-            } else { // START
-                crossPos = paddingCross + marginLeadCross;
+                crossPos = paddingTop + availableCross - c.marginBottom - crossDim;
+            } else {
+                crossPos = paddingTop + c.marginTop;
             }
 
-            float minCross = isH ? c.minHeight : c.minWidth;
-            float maxCross = isH ? c.maxHeight : c.maxWidth;
-            if (minCross > 0 && crossDim < minCross) crossDim = minCross;
-            if (maxCross > 0 && crossDim > maxCross) crossDim = maxCross;
+            if (c.minHeight > 0 && crossDim < c.minHeight) crossDim = c.minHeight;
+            if (c.maxHeight > 0 && crossDim > c.maxHeight) crossDim = c.maxHeight;
 
-            float mainPos = curMain + marginLeadMain;
-
-            // Assign coordinates
-            float x = isH ? mainPos : crossPos;
-            float y = isH ? crossPos : mainPos;
-            float w = isH ? mainDim : crossDim;
-            float h = isH ? crossDim : mainDim;
+            float x = curMain + c.marginLeft;
+            float y = crossPos;
+            float w = mainDim;
+            float h = crossDim;
 
             if (out != null && i < out.length && out[i] != null) {
                 out[i].set(x, y, w, h);
             }
 
-            c.outer.set(
-                    isH ? curMain : paddingCross,
-                    isH ? paddingCross : curMain,
-                    isH ? (mainDim + marginLeadMain + marginTrailMain) : availableCross,
-                    isH ? availableCross : (mainDim + marginLeadMain + marginTrailMain)
-            );
+            c.outer.set(curMain, paddingTop, mainDim + c.marginLeft + c.marginRight, availableCross);
             c.inner.set(x, y, w, h);
 
-            curMain += mainDim + marginLeadMain + marginTrailMain;
+            curMain += mainDim + c.marginLeft + c.marginRight;
+        }
+    }
+
+    // --- Monomorphic Vertical (AoS) ---
+    private void arrangeVerticalAoS(
+            List<Cell> cells, int n,
+            float containerWidth, float containerHeight,
+            float gap,
+            float paddingTop, float paddingRight, float paddingBottom, float paddingLeft,
+            Rect[] out
+    ) {
+        float availableMain = containerHeight - paddingTop - paddingBottom;
+        float availableCross = containerWidth - paddingLeft - paddingRight;
+        if (availableCross < 0) availableCross = 0;
+
+        float totalWeight = 0f;
+        float fixedMain = 0f;
+        float gapTotal = 0f;
+        boolean first = true;
+
+        for (int i = 0; i < n; i++) {
+            Cell c = cells.get(i);
+            if (!first) gapTotal += gap;
+            first = false;
+
+            float marginV = c.marginTop + c.marginBottom;
+            if (c.weight > 0) {
+                totalWeight += c.weight;
+                fixedMain += marginV;
+            } else {
+                fixedMain += c.height + marginV;
+            }
+        }
+
+        float remainingMain = availableMain - fixedMain - gapTotal;
+        if (remainingMain < 0) remainingMain = 0;
+
+        float curMain = paddingTop;
+        if (totalWeight <= 0 && remainingMain > 0) {
+            if (mainAlignment == Alignment.CENTER) {
+                curMain += remainingMain / 2f;
+            } else if (mainAlignment == Alignment.END) {
+                curMain += remainingMain;
+            }
+        }
+
+        first = true;
+        for (int i = 0; i < n; i++) {
+            Cell c = cells.get(i);
+            if (!first) curMain += gap;
+            first = false;
+
+            float mainDim;
+            if (c.weight > 0 && totalWeight > 0) {
+                mainDim = (c.weight / totalWeight) * remainingMain;
+            } else {
+                mainDim = c.height;
+            }
+
+            if (c.minHeight > 0 && mainDim < c.minHeight) mainDim = c.minHeight;
+            if (c.maxHeight > 0 && mainDim > c.maxHeight) mainDim = c.maxHeight;
+
+            float availableForCross = availableCross - (c.marginLeft + c.marginRight);
+            if (availableForCross < 0) availableForCross = 0;
+
+            Alignment align = (c.crossAlignment != null) ? c.crossAlignment : this.crossAlignment;
+            float crossDim = c.width;
+            float crossPos;
+
+            if (align == Alignment.STRETCH) {
+                crossDim = availableForCross;
+                crossPos = paddingLeft + c.marginLeft;
+            } else if (align == Alignment.CENTER) {
+                crossPos = paddingLeft + c.marginLeft + (availableForCross - crossDim) / 2f;
+            } else if (align == Alignment.END) {
+                crossPos = paddingLeft + availableCross - c.marginRight - crossDim;
+            } else {
+                crossPos = paddingLeft + c.marginLeft;
+            }
+
+            if (c.minWidth > 0 && crossDim < c.minWidth) crossDim = c.minWidth;
+            if (c.maxWidth > 0 && crossDim > c.maxWidth) crossDim = c.maxWidth;
+
+            float x = crossPos;
+            float y = curMain + c.marginTop;
+            float w = crossDim;
+            float h = mainDim;
+
+            if (out != null && i < out.length && out[i] != null) {
+                out[i].set(x, y, w, h);
+            }
+
+            c.outer.set(paddingLeft, curMain, availableCross, mainDim + c.marginTop + c.marginBottom);
+            c.inner.set(x, y, w, h);
+
+            curMain += mainDim + c.marginTop + c.marginBottom;
+        }
+    }
+
+    // --- Monomorphic Horizontal (Primitive Float Buffer) ---
+    private void arrangeHorizontalBuffer(
+            List<Cell> cells, int n,
+            float containerWidth, float containerHeight,
+            float gap,
+            float paddingTop, float paddingRight, float paddingBottom, float paddingLeft,
+            float[] outBounds, int offset
+    ) {
+        float availableMain = containerWidth - paddingLeft - paddingRight;
+        float availableCross = containerHeight - paddingTop - paddingBottom;
+        if (availableCross < 0) availableCross = 0;
+
+        float totalWeight = 0f;
+        float fixedMain = 0f;
+        float gapTotal = 0f;
+        boolean first = true;
+
+        for (int i = 0; i < n; i++) {
+            Cell c = cells.get(i);
+            if (!first) gapTotal += gap;
+            first = false;
+
+            float marginH = c.marginLeft + c.marginRight;
+            if (c.weight > 0) {
+                totalWeight += c.weight;
+                fixedMain += marginH;
+            } else {
+                fixedMain += c.width + marginH;
+            }
+        }
+
+        float remainingMain = availableMain - fixedMain - gapTotal;
+        if (remainingMain < 0) remainingMain = 0;
+
+        float curMain = paddingLeft;
+        if (totalWeight <= 0 && remainingMain > 0) {
+            if (mainAlignment == Alignment.CENTER) {
+                curMain += remainingMain / 2f;
+            } else if (mainAlignment == Alignment.END) {
+                curMain += remainingMain;
+            }
+        }
+
+        first = true;
+        int dest = offset;
+        for (int i = 0; i < n; i++) {
+            Cell c = cells.get(i);
+            if (!first) curMain += gap;
+            first = false;
+
+            float mainDim;
+            if (c.weight > 0 && totalWeight > 0) {
+                mainDim = (c.weight / totalWeight) * remainingMain;
+            } else {
+                mainDim = c.width;
+            }
+
+            if (c.minWidth > 0 && mainDim < c.minWidth) mainDim = c.minWidth;
+            if (c.maxWidth > 0 && mainDim > c.maxWidth) mainDim = c.maxWidth;
+
+            float availableForCross = availableCross - (c.marginTop + c.marginBottom);
+            if (availableForCross < 0) availableForCross = 0;
+
+            Alignment align = (c.crossAlignment != null) ? c.crossAlignment : this.crossAlignment;
+            float crossDim = c.height;
+            float crossPos;
+
+            if (align == Alignment.STRETCH) {
+                crossDim = availableForCross;
+                crossPos = paddingTop + c.marginTop;
+            } else if (align == Alignment.CENTER) {
+                crossPos = paddingTop + c.marginTop + (availableForCross - crossDim) / 2f;
+            } else if (align == Alignment.END) {
+                crossPos = paddingTop + availableCross - c.marginBottom - crossDim;
+            } else {
+                crossPos = paddingTop + c.marginTop;
+            }
+
+            if (c.minHeight > 0 && crossDim < c.minHeight) crossDim = c.minHeight;
+            if (c.maxHeight > 0 && crossDim > c.maxHeight) crossDim = c.maxHeight;
+
+            float x = curMain + c.marginLeft;
+            float y = crossPos;
+            float w = mainDim;
+            float h = crossDim;
+
+            if (outBounds != null && dest + 3 < outBounds.length) {
+                outBounds[dest]     = x;
+                outBounds[dest + 1] = y;
+                outBounds[dest + 2] = w;
+                outBounds[dest + 3] = h;
+            }
+            dest += 4;
+
+            c.outer.set(curMain, paddingTop, mainDim + c.marginLeft + c.marginRight, availableCross);
+            c.inner.set(x, y, w, h);
+
+            curMain += mainDim + c.marginLeft + c.marginRight;
+        }
+    }
+
+    // --- Monomorphic Vertical (Primitive Float Buffer) ---
+    private void arrangeVerticalBuffer(
+            List<Cell> cells, int n,
+            float containerWidth, float containerHeight,
+            float gap,
+            float paddingTop, float paddingRight, float paddingBottom, float paddingLeft,
+            float[] outBounds, int offset
+    ) {
+        float availableMain = containerHeight - paddingTop - paddingBottom;
+        float availableCross = containerWidth - paddingLeft - paddingRight;
+        if (availableCross < 0) availableCross = 0;
+
+        float totalWeight = 0f;
+        float fixedMain = 0f;
+        float gapTotal = 0f;
+        boolean first = true;
+
+        for (int i = 0; i < n; i++) {
+            Cell c = cells.get(i);
+            if (!first) gapTotal += gap;
+            first = false;
+
+            float marginV = c.marginTop + c.marginBottom;
+            if (c.weight > 0) {
+                totalWeight += c.weight;
+                fixedMain += marginV;
+            } else {
+                fixedMain += c.height + marginV;
+            }
+        }
+
+        float remainingMain = availableMain - fixedMain - gapTotal;
+        if (remainingMain < 0) remainingMain = 0;
+
+        float curMain = paddingTop;
+        if (totalWeight <= 0 && remainingMain > 0) {
+            if (mainAlignment == Alignment.CENTER) {
+                curMain += remainingMain / 2f;
+            } else if (mainAlignment == Alignment.END) {
+                curMain += remainingMain;
+            }
+        }
+
+        first = true;
+        int dest = offset;
+        for (int i = 0; i < n; i++) {
+            Cell c = cells.get(i);
+            if (!first) curMain += gap;
+            first = false;
+
+            float mainDim;
+            if (c.weight > 0 && totalWeight > 0) {
+                mainDim = (c.weight / totalWeight) * remainingMain;
+            } else {
+                mainDim = c.height;
+            }
+
+            if (c.minHeight > 0 && mainDim < c.minHeight) mainDim = c.minHeight;
+            if (c.maxHeight > 0 && mainDim > c.maxHeight) mainDim = c.maxHeight;
+
+            float availableForCross = availableCross - (c.marginLeft + c.marginRight);
+            if (availableForCross < 0) availableForCross = 0;
+
+            Alignment align = (c.crossAlignment != null) ? c.crossAlignment : this.crossAlignment;
+            float crossDim = c.width;
+            float crossPos;
+
+            if (align == Alignment.STRETCH) {
+                crossDim = availableForCross;
+                crossPos = paddingLeft + c.marginLeft;
+            } else if (align == Alignment.CENTER) {
+                crossPos = paddingLeft + c.marginLeft + (availableForCross - crossDim) / 2f;
+            } else if (align == Alignment.END) {
+                crossPos = paddingLeft + availableCross - c.marginRight - crossDim;
+            } else {
+                crossPos = paddingLeft + c.marginLeft;
+            }
+
+            if (c.minWidth > 0 && crossDim < c.minWidth) crossDim = c.minWidth;
+            if (c.maxWidth > 0 && crossDim > c.maxWidth) crossDim = c.maxWidth;
+
+            float x = crossPos;
+            float y = curMain + c.marginTop;
+            float w = crossDim;
+            float h = mainDim;
+
+            if (outBounds != null && dest + 3 < outBounds.length) {
+                outBounds[dest]     = x;
+                outBounds[dest + 1] = y;
+                outBounds[dest + 2] = w;
+                outBounds[dest + 3] = h;
+            }
+            dest += 4;
+
+            c.outer.set(paddingLeft, curMain, availableCross, mainDim + c.marginTop + c.marginBottom);
+            c.inner.set(x, y, w, h);
+
+            curMain += mainDim + c.marginTop + c.marginBottom;
         }
     }
 }

@@ -123,4 +123,50 @@ public class FastLayoutTest {
         assertEquals(20f, mV.width(), 0.001f);
         assertEquals(45f, mV.height(), 0.001f); // 20 + 5 + 20
     }
+
+    @Test
+    public void testReusableLayoutMeasureZeroAlloc() {
+        List<Cell> cells = new ArrayList<>();
+        cells.add(new Cell(40, 20));
+        cells.add(new Cell(60, 20));
+
+        LinearLayout layout = LinearLayout.horizontal();
+        LayoutMeasure reusable = new LayoutMeasure();
+
+        layout.measure(cells, 0, 0, 10, 5, 5, 5, 5, reusable);
+        // Width: 40 + 10 + 60 = 110 + 10 (padding) = 120
+        // Height: 20 + 10 (padding) = 30
+        assertEquals(120f, reusable.width, 0.001f);
+        assertEquals(30f, reusable.height, 0.001f);
+
+        // Mutate cell size and measure again into SAME instance
+        cells.get(0).width = 80;
+        layout.measure(cells, 0, 0, 10, 5, 5, 5, 5, reusable);
+        assertEquals(160f, reusable.width, 0.001f);
+        assertEquals(30f, reusable.height, 0.001f);
+    }
+
+    @Test
+    public void testPrimitiveFloatBufferArrange() {
+        List<Cell> cells = new ArrayList<>();
+        cells.add(new Cell(50, 20));
+        cells.add(new Cell(50, 20));
+
+        LinearLayout layout = LinearLayout.horizontal();
+        float[] buffer = new float[cells.size() * 4];
+
+        layout.arrange(cells, 110, 20, 10, 0, 0, 0, 0, buffer, 0);
+
+        // Item 0: [x, y, w, h] = [0, 0, 50, 20]
+        assertEquals(0f, buffer[0], 0.001f);
+        assertEquals(0f, buffer[1], 0.001f);
+        assertEquals(50f, buffer[2], 0.001f);
+        assertEquals(20f, buffer[3], 0.001f);
+
+        // Item 1: [x, y, w, h] = [60, 0, 50, 20]
+        assertEquals(60f, buffer[4], 0.001f);
+        assertEquals(0f, buffer[5], 0.001f);
+        assertEquals(50f, buffer[6], 0.001f);
+        assertEquals(20f, buffer[7], 0.001f);
+    }
 }
