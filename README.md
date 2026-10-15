@@ -119,7 +119,7 @@ Standard Java layout managers (`FlowLayout`, `GridBagLayout`, `BoxLayout`, JavaF
 1. ✅ **Decoupled Primitive Kernel**: Pure arithmetic `Cell`, `Rect`, and `LayoutMeasure` abstraction.
 2. ✅ **Monomorphic `LinearLayout`**: High-speed C2 inlinable horizontal and vertical loops.
 3. ✅ **Contiguous Float Buffering**: Direct flat `float[]` array streaming for GPU vertex and quad batching.
-4. 🔄 **Struct-of-Arrays (SoA) `LayoutArena`**: Flat contiguous memory arena optimizing CPU L1/L2 prefetching.
+4. ✅ **Struct-of-Arrays (SoA) `LayoutArena`**: Flat contiguous memory arena optimizing CPU L1/L2 prefetching and eliminating pointer chasing.
 5. 📋 **FastGUI & FastVulkan Integration**: First-class layout provider for high-FPS desktop UI pipelines.
 
 ---
@@ -137,11 +137,13 @@ Standard Java layout managers (`FlowLayout`, `GridBagLayout`, `BoxLayout`, JavaF
 
 FastLayout is rigorously profiled with **OpenJDK JMH (Java Microbenchmark Harness)** across 10, 100, and 1,000 element topologies:
 
-| Benchmark Operation | Element Count | Throughput | Allocation Rate |
-|:---|:---|:---|:---|
-| **Zero-Alloc Measurement (`measure`)** | 100 cells | **> 1,500,000 ops/sec** | **0 bytes / op (Zero GC)** |
-| **AoS Arrange (`Rect[]`)** | 100 cells | **> 850,000 ops/sec** | **0 bytes / op (Zero GC)** |
-| **Flat Float Buffer Arrange (`float[]`)** | 100 cells | **> 1,200,000 ops/sec** | **0 bytes / op (Zero GC)** |
+| Benchmark Operation | 10 Elements (Toolbar) | 100 Elements (Menu / Panel) | 1,000 Elements (Large List) | Allocation Rate |
+|:---|:---|:---|:---|:---|
+| **Zero-Alloc Measurement (`measure`)** | **~41,000 ops/ms** *(41M/s)* | **~4,500 ops/ms** *(4.5M/s)* | **~403 ops/ms** *(403k/s)* | **0 bytes / op (Zero GC)** |
+| **Pure SoA Measurement (`LayoutArena`)** | **~44,000 ops/ms** *(44M/s)* | **~4,440 ops/ms** *(4.4M/s)* | **~435 ops/ms** *(435k/s)* | **0 bytes / op (Zero GC)** |
+| **AoS Arrange (`Rect[]`)** | **~9,300 - 13,800 ops/ms** | **~1,040 - 1,860 ops/ms** | **~56 - 127 ops/ms** | **0 bytes / op (Zero GC)** |
+| **Flat Float Buffer Arrange (`float[]`)** | **~14,100 ops/ms** *(14.1M/s)* | **~1,480 ops/ms** *(1.48M/s)* | **~112 ops/ms** *(112k/s)* | **0 bytes / op (Zero GC)** |
+| **Pure SoA Kernel (`Arena -> float[]`)** | **~13,700 ops/ms** *(13.7M/s)* | **~1,500 ops/ms** *(1.5M/s)* | **~134 ops/ms** *(134k/s)* | **0 bytes / op (Zero GC)** |
 
 *Run the benchmarks locally:*
 ```powershell
@@ -157,8 +159,10 @@ FastLayout is rigorously profiled with **OpenJDK JMH (Java Microbenchmark Harnes
 | `LinearLayout.horizontal()` | `LinearLayout` | Creates horizontal layout with default center alignment. | [Reference](docs/REFERENCE.md#2-class-fastlayoutlinearlayout) |
 | `LinearLayout.vertical()` | `LinearLayout` | Creates vertical layout with default stretch alignment. | [Reference](docs/REFERENCE.md#2-class-fastlayoutlinearlayout) |
 | `layout.measure(cells, ..., measure)` | `void` | Zero-allocation measurement writing into reusable `LayoutMeasure`. | [Reference](docs/REFERENCE.md#2-class-fastlayoutlinearlayout) |
+| `layout.measure(arena, offset, count, ..., measure)` | `void` | **Pure SoA:** Zero-indirection measurement directly from `LayoutArena`. | [Reference](docs/REFERENCE.md#2-class-fastlayoutlinearlayout) |
 | `layout.arrange(cells, ..., Rect[] out)` | `void` | Zero-allocation arrangement writing into pre-allocated `Rect[]` array. | [Reference](docs/REFERENCE.md#2-class-fastlayoutlinearlayout) |
 | `layout.arrange(cells, ..., float[] buf, int off)` | `void` | Zero-allocation arrangement writing into flat contiguous float buffer. | [Reference](docs/REFERENCE.md#2-class-fastlayoutlinearlayout) |
+| `layout.arrange(arena, offset, count, ..., float[] buf, int off)` | `void` | **Pure SoA Kernel:** Zero-indirection arrangement from `LayoutArena` to `float[]`. | [Reference](docs/REFERENCE.md#2-class-fastlayoutlinearlayout) |
 | `FastLayout.measure(...)` | `LayoutMeasure` | Convenience facade method with uniform padding. | [Reference](docs/REFERENCE.md#1-class-fastlayoutfastlayout) |
 
 ---
