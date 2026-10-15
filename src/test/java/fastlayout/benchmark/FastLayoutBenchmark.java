@@ -27,6 +27,7 @@ public class FastLayoutBenchmark {
     private LinearLayout verticalLayout;
 
     private List<Cell> cells;
+    private LayoutArena arena;
     private Rect[] outRects;
     private float[] outFloatBuffer;
     private LayoutMeasure reusableMeasure;
@@ -37,6 +38,7 @@ public class FastLayoutBenchmark {
         verticalLayout = LinearLayout.vertical(Alignment.STRETCH);
 
         cells = new ArrayList<>(elementCount);
+        arena = new LayoutArena(elementCount);
         outRects = new Rect[elementCount];
         outFloatBuffer = new float[elementCount * 4];
         reusableMeasure = new LayoutMeasure();
@@ -50,11 +52,21 @@ public class FastLayoutBenchmark {
             cells.add(c);
             outRects[i] = new Rect();
         }
+
+        // Preload LayoutArena for pure SoA benchmark
+        arena.load(cells);
     }
 
     @Benchmark
     public void benchmarkMeasureZeroAlloc(Blackhole bh) {
         horizontalLayout.measure(cells, 0, 0, 4, 8, 8, 8, 8, reusableMeasure);
+        bh.consume(reusableMeasure.width);
+        bh.consume(reusableMeasure.height);
+    }
+
+    @Benchmark
+    public void benchmarkMeasureArenaSoA(Blackhole bh) {
+        horizontalLayout.measure(arena, 0, elementCount, 0, 0, 4, 8, 8, 8, 8, reusableMeasure);
         bh.consume(reusableMeasure.width);
         bh.consume(reusableMeasure.height);
     }
@@ -72,6 +84,12 @@ public class FastLayoutBenchmark {
     }
 
     @Benchmark
+    public void benchmarkArrangeArena_PureSoA(Blackhole bh) {
+        horizontalLayout.arrange(arena, 0, elementCount, 1000, 50, 4, 8, 8, 8, 8, outFloatBuffer, 0);
+        bh.consume(outFloatBuffer);
+    }
+
+    @Benchmark
     public void benchmarkVerticalArrangeAoS_RectArray(Blackhole bh) {
         verticalLayout.arrange(cells, 200, 5000, 4, 8, 8, 8, 8, outRects);
         bh.consume(outRects);
@@ -80,6 +98,12 @@ public class FastLayoutBenchmark {
     @Benchmark
     public void benchmarkVerticalArrangeBuffer_FlatFloats(Blackhole bh) {
         verticalLayout.arrange(cells, 200, 5000, 4, 8, 8, 8, 8, outFloatBuffer, 0);
+        bh.consume(outFloatBuffer);
+    }
+
+    @Benchmark
+    public void benchmarkVerticalArrangeArena_PureSoA(Blackhole bh) {
+        verticalLayout.arrange(arena, 0, elementCount, 200, 5000, 4, 8, 8, 8, 8, outFloatBuffer, 0);
         bh.consume(outFloatBuffer);
     }
 

@@ -3,48 +3,18 @@
 [![Status](https://img.shields.io/badge/status-0.1.0-brightgreen.svg)](https://github.com/andrestubbe/FastLayout/releases/tag/0.1.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Java](https://img.shields.io/badge/Java-17+-blue.svg)](https://www.java.com)
-[![Platform](https://img.shields.io/badge/Platform-Cross%20Platform-lightgrey.svg)]()
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 [![JitPack](https://jitpack.io/v/andrestubbe/FastLayout.svg)](https://jitpack.io/#andrestubbe/FastLayout)
 
 ---
 
 **⚡ Ultra-fast, zero-allocation primitive layout engine for the FastJava ecosystem. Powers floating toolbars, responsive sidebars, dropdown menus, and settings palettes.**
 
-**FastLayout** completely decouples geometry computation and alignment from graphical widgets, window handles, and heavy toolkit hierarchies. By calculating layout bounds purely over lightweight `Cell` descriptors and writing directly into primitive-backed `Rect` structures or flat contiguous `float[]` buffers (`stride: x, y, w, h`), FastLayout delivers microsecond execution and **0 bytes Garbage Collection churn**.
+**FastLayout** completely decouples geometry computation and alignment from graphical widgets, window handles, and heavy toolkit hierarchies. By calculating layout bounds purely over lightweight `Cell` descriptors or high-performance `LayoutArena` (SoA) and writing directly into primitive-backed `Rect` structures or flat contiguous `float[]` buffers (`stride: x, y, w, h`), FastLayout delivers microsecond execution and **0 bytes Garbage Collection churn**.
 
 ---
 
-## Table of Contents
-
-- [Why FastLayout?](#why-fastlayout)
-- [Quick Start](#quick-start)
-- [Key Features](#key-features)
-- [Real-World Use Cases](#real-world-use-cases)
-- [Performance Benchmarks](#performance-benchmarks)
-- [API Quick Reference](#api-quick-reference)
-- [Installation](#installation)
-- [Documentation](#documentation)
-- [License](#license)
-- [Related Projects](#related-projects)
-
----
-
-## Why FastLayout?
-
-Standard Java layout managers (`FlowLayout`, `GridBagLayout`, `BoxLayout`, JavaFX layouts) are tightly coupled to their respective widget frameworks (`java.awt.Component`, `javafx.scene.Node`). They generate heavy object allocations on every layout pass, enforce rigid widget hierarchies, and cannot easily be reused in custom hardware-accelerated render loops (Vulkan, DirectX, OpenGL, or native overlays).
-
-| Feature | AWT / Swing Layouts | JavaFX Layouts | FastLayout |
-|:---|:---|:---|:---|
-| **Toolkit Dependency** | ❌ Coupled to `java.awt.Container` | ❌ Coupled to `javafx.scene.Node` | **✅ 100% Decoupled & Pure Math** |
-| **GC Allocations on Hot-Path** | ⚠️ High (Creates `Dimension`, `Insets`, `Rectangle`) | ⚠️ Moderate-to-High | **✅ 0 Bytes (Reusable `LayoutMeasure` & buffers)** |
-| **Data Output Layouts** | Only widget coordinates | Only scene graph bounds | **AoS (`Rect[]`), SoA, & Flat `float[]` Buffers** |
-| **Inner & Outer Margin Bounds** | ❌ Missing (or complex borders) | ⚠️ CSS margin box calculation | **✅ Automatic `cell.inner` & `cell.outer` tracking** |
-| **Execution Latency** | Milliseconds | Milliseconds | **Sub-microsecond (< 1 µs)** |
-| **Backend Agnostic** | Swing only | JavaFX only | **FastGUI, FastVulkan, FastWindow, Swing, CLI** |
-
----
-
-## Quick Start
+## Quick Start — Example
 
 ### 1. Horizontal Toolbar (Fit-to-Content for Floating Bars)
 
@@ -93,30 +63,37 @@ float[] outBuffer = new float[cells.size() * 4];
 layout.arrange(cells, containerW, containerH, 8, 10, 10, 10, 10, outBuffer, 0);
 ```
 
-### 3. Vertical Popup Menu / Settings List
+---
 
-```java
-import fastlayout.*;
-import java.util.List;
-import java.util.ArrayList;
+## Table of Contents
 
-public class MenuExample {
-    public static void main(String[] args) {
-        List<Cell> items = new ArrayList<>();
-        items.add(new Cell(120, 24)); // Cut
-        items.add(new Cell(160, 24)); // Copy (Widest)
-        items.add(new Cell(90, 24));  // Paste
+- [Why FastLayout?](#why-fastlayout)
+- [Key Features](#key-features)
+- [Architecture & Progressive Roadmap](#architecture--progressive-roadmap)
+- [Real-World Use Cases](#real-world-use-cases)
+- [Performance Benchmarks](#performance-benchmarks)
+- [API Quick Reference](#api-quick-reference)
+- [Technical Demos & Benchmarks](#technical-demos--benchmarks)
+- [Installation](#installation)
+- [Documentation](#documentation)
+- [Platform Support](#platform-support)
+- [License](#license)
+- [Related Projects](#related-projects)
 
-        // Vertical stretch aligns all items to the widest element
-        LinearLayout layout = LinearLayout.vertical(Alignment.STRETCH);
+---
 
-        // Gap: 4, Padding: 6
-        LayoutMeasure measure = layout.measure(items, 0, 0, 4, 6, 6, 6, 6);
-        System.out.printf("Popup size: %.0f × %.0f px%n", measure.width, measure.height);
-        // -> Popup size: 172 × 92 px (matches widest item + vertical sum)
-    }
-}
-```
+## Why FastLayout?
+
+Standard Java layout managers (`FlowLayout`, `GridBagLayout`, `BoxLayout`, JavaFX layouts) are tightly coupled to their respective widget frameworks (`java.awt.Component`, `javafx.scene.Node`). They generate heavy object allocations on every layout pass, enforce rigid widget hierarchies, and cannot easily be reused in custom hardware-accelerated render loops (Vulkan, DirectX, OpenGL, or native overlays).
+
+| Feature | AWT / Swing Layouts | JavaFX Layouts | FastLayout |
+|:---|:---|:---|:---|
+| **Toolkit Dependency** | ❌ Coupled to `java.awt.Container` | ❌ Coupled to `javafx.scene.Node` | **✅ 100% Decoupled & Pure Math** |
+| **GC Allocations on Hot-Path** | ⚠️ High (Creates `Dimension`, `Insets`, `Rectangle`) | ⚠️ Moderate-to-High | **✅ 0 Bytes (Reusable `LayoutMeasure` & buffers)** |
+| **Data Output Layouts** | Only widget coordinates | Only scene graph bounds | **AoS (`Rect[]`), SoA, & Flat `float[]` Buffers** |
+| **Inner & Outer Margin Bounds** | ❌ Missing (or complex borders) | ⚠️ CSS margin box calculation | **✅ Automatic `cell.inner` & `cell.outer` tracking** |
+| **Execution Latency** | Milliseconds | Milliseconds | **Sub-microsecond (< 1 µs)** |
+| **Backend Agnostic** | Swing only | JavaFX only | **FastGUI, FastVulkan, FastWindow, Swing, CLI** |
 
 ---
 
@@ -133,6 +110,17 @@ public class MenuExample {
   - Main-axis alignment (`START`, `CENTER`, `END`).
   - Flex growth (`weight > 0.0f`) with min/max size clamping.
 - **📦 Dual Box Geometry**: Calculates both `cell.outer` (inclusive of margins) and `cell.inner` (content box).
+- **📦 FastJava Ecosystem Ready**: Interoperates seamlessly with **FastGrid**, **FastGUI**, **FastVulkan**, and **FastWindow**.
+
+---
+
+## Architecture & Progressive Roadmap
+
+1. ✅ **Decoupled Primitive Kernel**: Pure arithmetic `Cell`, `Rect`, and `LayoutMeasure` abstraction.
+2. ✅ **Monomorphic `LinearLayout`**: High-speed C2 inlinable horizontal and vertical loops.
+3. ✅ **Contiguous Float Buffering**: Direct flat `float[]` array streaming for GPU vertex and quad batching.
+4. 🔄 **Struct-of-Arrays (SoA) `LayoutArena`**: Flat contiguous memory arena optimizing CPU L1/L2 prefetching.
+5. 📋 **FastGUI & FastVulkan Integration**: First-class layout provider for high-FPS desktop UI pipelines.
 
 ---
 
@@ -140,14 +128,14 @@ public class MenuExample {
 
 - 🛠️ **Floating Toolbars & Docks**: Compute precise auto-sizing window dimensions (`LayoutMeasure`) for Mica/Acrylic floating docks and icon trays.
 - 📋 **Context & Popup Menus**: Automatically align menu action items to the widest label with cross-axis `Alignment.STRETCH`.
-- 🎮 **Hardware-Accelerated Canvas & Vulkan (FastVulkan / FastGraphics)**: Calculate HUD, minimap, and UI coordinates directly into flat vertex float buffers without GC pauses.
+- 🎮 **Hardware-Accelerated Canvas & Vulkan ([FastVulkan](https://github.com/andrestubbe/FastVulkan) / [FastGraphics](https://github.com/andrestubbe/FastGraphics))**: Calculate HUD, minimap, and UI coordinates directly into flat vertex float buffers without GC pauses.
 - 🗂️ **Custom Window Chrome**: Position custom titlebar buttons (Minimize, Maximize, Close) and tab strips with microsecond precision.
 
 ---
 
 ## Performance Benchmarks
 
-FastLayout is profiled with **OpenJDK JMH (Java Microbenchmark Harness)** across 10, 100, and 1,000 element topologies:
+FastLayout is rigorously profiled with **OpenJDK JMH (Java Microbenchmark Harness)** across 10, 100, and 1,000 element topologies:
 
 | Benchmark Operation | Element Count | Throughput | Allocation Rate |
 |:---|:---|:---|:---|
@@ -175,9 +163,20 @@ FastLayout is profiled with **OpenJDK JMH (Java Microbenchmark Harness)** across
 
 ---
 
+## Technical Demos & Benchmarks
+
+| Case | Java Source | Launcher | Description |
+|:---|:---|:---|:---|
+| **Unit Verification Suite** | [FastLayoutTest.java](src/test/java/fastlayout/FastLayoutTest.java) | `mvn test` | Complete JUnit 5 suite covering horizontal/vertical fit-content, flex stretch, and SoA. |
+| **JMH Microbenchmark Suite** | [FastLayoutBenchmark.java](src/test/java/fastlayout/benchmark/FastLayoutBenchmark.java) | `run-benchmark.bat` | Formal OpenJDK JMH throughput measurements across 10, 100, and 1,000 cells. |
+
+---
+
 ## Installation
 
-### Maven (JitPack)
+### Option 1: Maven (Recommended)
+
+Add the JitPack repository and the dependency to your `pom.xml`:
 
 ```xml
 <repositories>
@@ -196,7 +195,7 @@ FastLayout is profiled with **OpenJDK JMH (Java Microbenchmark Harness)** across
 </dependencies>
 ```
 
-### Gradle
+### Option 2: Gradle (via JitPack)
 
 ```groovy
 repositories {
@@ -208,12 +207,31 @@ dependencies {
 }
 ```
 
+### Option 3: Direct Download (Pre-built JAR)
+
+Download the latest pre-compiled JAR directly from GitHub Releases:
+
+1. 📦 [**FastLayout-0.1.0.jar**](https://github.com/andrestubbe/FastLayout/releases/download/0.1.0/FastLayout-0.1.0.jar)
+
 ---
 
 ## Documentation
 
-- **[API Reference Manual](docs/REFERENCE.md)** — Exhaustive method reference and memory contracts.
-- **[Technical Roadmap](docs/ROADMAP.md)** — Planned algorithms (`GridLayout`, `WrapLayout`) and milestones.
+- **[REFERENCE.md](docs/REFERENCE.md)**: Full API contracts, primitive layout math, and memory layouts.
+- **[PHILOSOPHY.md](docs/PHILOSOPHY.md)**: Zero-allocation and decoupled architectural principles.
+- **[ROADMAP.md](docs/ROADMAP.md)**: Future development milestones and planned algorithms.
+- **[CHANGELOG.md](docs/CHANGELOG.md)**: Version history, release notes, and migration guides.
+- **[COMPILE.md](docs/COMPILE.md)**: Compilation guide for Java sources and JMH benchmarks.
+
+---
+
+## Platform Support
+
+| Platform | Architecture | Status | Engine Subsystem |
+|:---|:---:|:---:|:---|
+| **Windows 10 / 11** | x64 / ARM64 | ✅ Fully Supported | Pure JVM primitive math |
+| **Linux** | x64 / AArch64 | ✅ Fully Supported | Pure JVM primitive math |
+| **macOS** | Apple Silicon / x64 | ✅ Fully Supported | Pure JVM primitive math |
 
 ---
 
@@ -231,3 +249,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 - **[FastVulkan](https://github.com/andrestubbe/FastVulkan)** — High-performance native Vulkan 2D rendering engine.
 - **[FastWindow](https://github.com/andrestubbe/FastWindow)** — High-performance native Win32 window management.
 - **[FastTheme](https://github.com/andrestubbe/FastTheme)** — Native Windows DWM theme and dark mode engine.
+
+---
+
+Part of the FastJava Ecosystem — Making the JVM faster. Small package. Maximum speed. Zero bloat. ⚡

@@ -169,4 +169,33 @@ public class FastLayoutTest {
         assertEquals(50f, buffer[6], 0.001f);
         assertEquals(20f, buffer[7], 0.001f);
     }
+
+    @Test
+    public void testLayoutArenaDirectSoA() {
+        LayoutArena arena = new LayoutArena(3);
+        // Slot 0: 30x20
+        arena.setSize(0, 30, 20);
+        // Slot 1: Spacer (flex weight 1.0)
+        arena.setWeight(1, 1.0f);
+        // Slot 2: 30x20
+        arena.setSize(2, 30, 20);
+
+        LinearLayout layout = LinearLayout.horizontal();
+        float[] buffer = new float[3 * 4];
+
+        // Container: 300 wide, 20 high, gap: 0, pad: 0
+        layout.arrange(arena, 0, 3, 300, 20, 0, 0, 0, 0, 0, buffer, 0);
+
+        // Slot 0: x=0, y=0, w=30, h=20
+        assertEquals(0f, buffer[0], 0.001f);
+        assertEquals(30f, buffer[2], 0.001f);
+
+        // Slot 1 (Spacer): x=30, w=240
+        assertEquals(30f, buffer[4], 0.001f);
+        assertEquals(240f, buffer[6], 0.001f);
+
+        // Slot 2: x=270, w=30
+        assertEquals(270f, buffer[8], 0.001f);
+        assertEquals(30f, buffer[10], 0.001f);
+    }
 }

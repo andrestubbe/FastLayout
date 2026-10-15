@@ -41,6 +41,23 @@ public interface LayoutAlgorithm {
     );
 
     /**
+     * Measures the content bounding box directly over a high-performance Struct-of-Arrays LayoutArena (zero indirection).
+     */
+    void measure(
+            LayoutArena arena,
+            int offset,
+            int count,
+            float containerWidth,
+            float containerHeight,
+            float gap,
+            float paddingTop,
+            float paddingRight,
+            float paddingBottom,
+            float paddingLeft,
+            LayoutMeasure out
+    );
+
+    /**
      * Positions and dimensions each cell into pre-allocated Rect objects (AoS format).
      */
     void arrange(
@@ -56,7 +73,7 @@ public interface LayoutAlgorithm {
     );
 
     /**
-     * Positions and dimensions each cell into a flat primitive float buffer (SoA / stride format: x, y, w, h).
+     * Positions and dimensions each cell into a flat primitive float buffer (Stride format: x, y, w, h).
      * Ideal for direct blitting, OpenGL/Vulkan/DirectX vertex buffers, or cache-aligned batched processing.
      *
      * @param cells input cells
@@ -81,5 +98,24 @@ public interface LayoutAlgorithm {
             float paddingLeft,
             float[] outBounds,
             int offset
+    );
+
+    /**
+     * Pure zero-indirection, zero-allocation layout kernel:
+     * Reads directly from a Struct-of-Arrays LayoutArena and writes directly into a flat primitive float buffer.
+     */
+    void arrange(
+            LayoutArena arena,
+            int slotOffset,
+            int count,
+            float containerWidth,
+            float containerHeight,
+            float gap,
+            float paddingTop,
+            float paddingRight,
+            float paddingBottom,
+            float paddingLeft,
+            float[] outBounds,
+            int outOffset
     );
 }
