@@ -51,6 +51,18 @@ public class Cell {
         this.weight = weight;
     }
 
+    /** Creates an expandable spacer with the given flex weight (default 1.0). */
+    public static Cell spacer(float weight) {
+        Cell c = new Cell();
+        c.weight = weight;
+        return c;
+    }
+
+    /** Creates an expandable spacer with flex weight 1.0. */
+    public static Cell spacer() {
+        return spacer(1.0f);
+    }
+
     public Cell size(float w, float h) {
         this.width = w;
         this.height = h;

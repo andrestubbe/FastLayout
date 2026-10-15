@@ -1,7 +1,6 @@
 package fastlayout;
 
 import org.junit.jupiter.api.Test;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -74,6 +73,36 @@ public class FastLayoutTest {
         assertEquals(6f, out[0].y, 0.001f);
         assertEquals(6f + 24f + 4f, out[1].y, 0.001f);
         assertEquals(6f + 24f + 4f + 24f + 4f, out[2].y, 0.001f);
+    }
+
+    @Test
+    public void testSpacerPushesItemRight() {
+        // Container: 300px wide, Padding: 0, Gap: 0
+        // Icon A: 30px left
+        // Spacer: weight 1.0
+        // Icon B: 30px right
+        List<Cell> cells = new ArrayList<>();
+        cells.add(new Cell(30, 30));
+        cells.add(Cell.spacer());
+        cells.add(new Cell(30, 30));
+
+        LinearLayout layout = LinearLayout.horizontal();
+        Rect[] out = new Rect[3];
+        for (int i = 0; i < 3; i++) out[i] = new Rect();
+
+        layout.arrange(cells, 300, 30, 0, 0, 0, 0, 0, out);
+
+        // Icon A at left: x = 0, w = 30
+        assertEquals(0f, out[0].x, 0.001f);
+        assertEquals(30f, out[0].w, 0.001f);
+
+        // Spacer in middle: x = 30, w = 240 (300 - 30 - 30)
+        assertEquals(30f, out[1].x, 0.001f);
+        assertEquals(240f, out[1].w, 0.001f);
+
+        // Icon B at right: x = 270, w = 30
+        assertEquals(270f, out[2].x, 0.001f);
+        assertEquals(30f, out[2].w, 0.001f);
     }
 
     @Test
