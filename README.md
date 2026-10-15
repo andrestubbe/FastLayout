@@ -35,7 +35,9 @@ public class ToolbarExample {
         LinearLayout layout = LinearLayout.horizontal();
 
         // 1. Measure exact bounding box required by the icons (8px gap, 10px padding)
-        LayoutMeasure measure = layout.measure(cells, 0, 0, 8, 10, 10, 10, 10);
+        // Zero-allocation: pass a reusable LayoutMeasure instance
+        LayoutMeasure measure = new LayoutMeasure();
+        layout.measure(cells, 0, 0, 8, 10, 10, 10, 10, measure);
         System.out.printf("Window size: %.0f × %.0f px%n", measure.width, measure.height);
         // -> Window size: 172 × 52 px (Window sizes directly to this exact bounding box!)
 
@@ -61,6 +63,23 @@ float[] outBuffer = new float[cells.size() * 4];
 
 // Arranges directly into buffer at offset 0 — 0 bytes heap allocation
 layout.arrange(cells, containerW, containerH, 8, 10, 10, 10, 10, outBuffer, 0);
+```
+
+### 3. Pure Struct-of-Arrays (SoA) Kernel via `LayoutArena`
+
+Eliminates pointer-chasing and object headers completely by reading directly from contiguous primitive arrays:
+
+```java
+LayoutArena arena = new LayoutArena(3);
+arena.setSize(0, 30, 20);      // Item A: 30x20
+arena.setWeight(1, 1.0f);      // Item B: Flexible spacer
+arena.setSize(2, 30, 20);      // Item C: 30x20
+
+float[] outBounds = new float[3 * 4];
+layout.arrange(arena, 0, 3, 300, 20, 0, 0, 0, 0, 0, outBounds, 0);
+// Item A: [0, 0, 30, 20]
+// Item B: [30, 0, 240, 20]
+// Item C: [270, 0, 30, 20]
 ```
 
 ---
