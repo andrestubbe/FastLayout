@@ -8,7 +8,7 @@
 
 ---
 
-**⚡ Zero-allocation, decoupled primitive layout engine for the FastJava ecosystem. High-performance layout pipelines for toolbars, floating bars, popup menus, and settings panels.**
+**⚡ Zero-allocation, decoupled primitive layout engine for the FastJava ecosystem. High-performance unified `LinearLayout` engine for toolbars, floating bars, popup menus, and settings panels.**
 
 **FastLayout** completely decouples geometry computation and alignment from graphical components, widgets, and window toolkits. By calculating layout bounds purely over lightweight `Cell` descriptors and writing directly into primitive-backed `Rect` structures (`float x, y, w, h`), FastLayout delivers microsecond execution and zero garbage collection overhead.
 
@@ -32,14 +32,14 @@ public class ToolbarExample {
         cells.add(new Cell(32, 32));
         cells.add(new Cell(32, 32));
 
-        HorizontalLayout layout = new HorizontalLayout(Alignment.CENTER);
+        LinearLayout layout = LinearLayout.horizontal();
 
         // 1. Measure exact bounding box required by the icons (8px gap, 10px padding)
         LayoutMeasure measure = layout.measure(cells, 0, 0, 8, 10, 10, 10, 10);
         System.out.printf("Window size: %.0f × %.0f px%n", measure.width(), measure.height());
         // -> Window size: 172 × 52 px (Mica/Acrylic window sizes to this exact size!)
 
-        // 2. Arrange items with zero allocations
+        // 2. Arrange items with zero allocations into pre-allocated Rect buffer
         Rect[] bounds = new Rect[cells.size()];
         for (int i = 0; i < bounds.length; i++) bounds[i] = new Rect();
         layout.arrange(cells, measure.width(), measure.height(), 8, 10, 10, 10, 10, bounds);
@@ -65,7 +65,8 @@ public class MenuExample {
         items.add(new Cell(160, 24)); // Copy (Widest)
         items.add(new Cell(90, 24));  // Paste
 
-        VerticalLayout layout = new VerticalLayout(Alignment.STRETCH);
+        // Vertical stretch aligns all items to the widest element
+        LinearLayout layout = LinearLayout.vertical(Alignment.STRETCH);
 
         // Gap: 4, Padding: 6
         LayoutMeasure measure = layout.measure(items, 0, 0, 4, 6, 6, 6, 6);
@@ -81,9 +82,10 @@ public class MenuExample {
 
 - **🧩 Decoupled Architecture**: 100% agnostic of AWT, Swing, JavaFX, or Vulkan. Works with any rendering backend.
 - **⚡ Zero GC Overhead**: Reads primitive constraints, writes directly into flat `Rect` arrays.
-- **📏 Two Core Algorithms**:
-  - `HorizontalLayout`: Fit-to-content icon bars, toolbars, breadcrumbs, flex-rows.
-  - `VerticalLayout`: Dropdown menus, popup settings, command palettes, flex-columns.
+- **📏 Unified `LinearLayout`**:
+  - `LinearLayout.horizontal()`: Fit-to-content icon bars, toolbars, breadcrumbs, flex-rows.
+  - `LinearLayout.vertical()`: Dropdown menus, popup settings, command palettes, flex-columns.
+  - Seamless axis switching (`Axis.HORIZONTAL` / `Axis.VERTICAL`) at runtime.
 - **📐 Flexible Sizing**: Supports fixed sizes, flex weights (`weight > 0`), min/max bounds, margins, and padding.
 - **🎯 Alignment Control**: Main-axis & cross-axis alignments (`START`, `CENTER`, `END`, `STRETCH`).
 

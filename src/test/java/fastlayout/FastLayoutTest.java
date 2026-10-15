@@ -17,7 +17,7 @@ public class FastLayoutTest {
         cells.add(new Cell(32, 32));
         cells.add(new Cell(32, 32));
 
-        HorizontalLayout layout = new HorizontalLayout(Alignment.CENTER);
+        LinearLayout layout = LinearLayout.horizontal();
 
         // Measure: 4 * 32 = 128 contentW + 3 * 8 (gaps = 24) + 20 (padding = 10+10) = 172
         // Height: 32 + 20 (padding = 10+10) = 52
@@ -52,7 +52,7 @@ public class FastLayoutTest {
         cells.add(new Cell(160, 24));
         cells.add(new Cell(90, 24));
 
-        VerticalLayout layout = new VerticalLayout(Alignment.STRETCH);
+        LinearLayout layout = LinearLayout.vertical(Alignment.STRETCH);
 
         // Gap: 4, Padding: 6
         // Width: max(120, 160, 90) = 160 + 12 (padding) = 172
@@ -73,5 +73,24 @@ public class FastLayoutTest {
         assertEquals(6f, out[0].y, 0.001f);
         assertEquals(6f + 24f + 4f, out[1].y, 0.001f);
         assertEquals(6f + 24f + 4f + 24f + 4f, out[2].y, 0.001f);
+    }
+
+    @Test
+    public void testDynamicAxisSwitch() {
+        List<Cell> cells = new ArrayList<>();
+        cells.add(new Cell(20, 20));
+        cells.add(new Cell(20, 20));
+
+        // Horizontal
+        LinearLayout hLayout = LinearLayout.horizontal();
+        LayoutMeasure mH = hLayout.measure(cells, 0, 0, 5, 0, 0, 0, 0);
+        assertEquals(45f, mH.width(), 0.001f); // 20 + 5 + 20
+        assertEquals(20f, mH.height(), 0.001f);
+
+        // Vertical
+        LinearLayout vLayout = LinearLayout.vertical();
+        LayoutMeasure mV = vLayout.measure(cells, 0, 0, 5, 0, 0, 0, 0);
+        assertEquals(20f, mV.width(), 0.001f);
+        assertEquals(45f, mV.height(), 0.001f); // 20 + 5 + 20
     }
 }
